@@ -23,42 +23,34 @@ use warnings;
 use lib               'lib/perl5';
 use Data::Dump        qw/ddx/;
 use Math::ConvexHull  qw/convex_hull/;
-use XML::Bare;
+use XML::Simple;
 
 my $file  = $ARGV[0]  or die "Please specify a filename to read";
 (-r $file)            or die "Please ensure the file you specified is readable";
 
 my %waps;
 
-open(my $fh,'<',$file)  or die "Failed to open file";
-while (<$fh>) {
-  next unless (/gps-point/);
+my $xml = XMLin($file) or die "Failed to parse input file";
 
-  my $xml   = new XML::Bare(text  => $_);
-  my $tree  = $xml->parse;
-  my $gps   = $tree->{'gps-point'};
-  my $bssid = $gps->{bssid}->{value};
+for my $point (@{$xml->{'gps-point'}}) {
+  # Ignore any points without a full 3d GPS fix
+  next unless ($point->{fix}  == 3);
 
-  next unless ($gps->{fix}->{value} == 3);
+  my $bssid = $point->{bssid};
+  
+  $waps{$bssid} = {
+    points  => [],
+    powers  => {},
+    ssid    => $bssid } unless ($waps{$bssid});
 
-  $waps{$bssid} = {power => {}, points => []} unless ($waps{$bssid});
+  my $coords  = [$point->{lat},$point->{lon}];
 
-  my $coords    = [$gps->{lat}->{value},$gps->{lon}->{value}];
-
-  $waps{$bssid}->{power}->{$coords}  = $gps->{signal}->{value};
-  push @{$waps{$bssid}->{points}},$coords;
+  push @{$waps{$bssid}->{points}}, $coords;
+  $waps{$bssid}->{powers}->{$coords}  = $point->{signal};
 }
-
-close($fh);
 
 for my $wap (keys %waps) {
   print "Processing WAP $wap\n";
   
   my $hull  = convex_hull($waps{$wap}->{points});
-  for my $point (@{$hull}) {
-    next unless $point;
-
-    ddx($point);
-    ddx($waps{$wap}->{power}->{$point});
-  }
 }
