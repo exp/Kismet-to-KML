@@ -1,0 +1,22 @@
+=head2 Wed Mar 10 19:13:09 2010: C<Module> L<Math::ConvexHull|Math::ConvexHull>
+
+=over 4
+
+=item *
+
+C<installed into: /home/paul/local/pykismetearth/lib/lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 1.03>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
