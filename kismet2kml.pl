@@ -26,11 +26,10 @@ use Math::ConvexHull  qw/convex_hull/;
 use XML::Simple;
 use XML::Generator;
 
-my $file  = $ARGV[0]  or die "Please specify a filename to read";
-(-r $file)            or die "Please ensure the file you specified is readable";
+my $prefix  = $ARGV[0]  or die "Please specify a prefix for gps and xml files";
+(-r "$prefix.gps" && -r "$prefix.xml") or die "Either the gps or xml file is unreadable";
 
-my $minpower  = 10;
-my $maxpower  = -100000;
+my ($minpower,$maxpower)  = undef;
 my %waps;
 
 sub norm_power {
@@ -43,7 +42,8 @@ sub norm_power {
   return $in;
 }
 
-my $gpsin = XMLin($file) or die "Failed to parse input file";
+my $gpsin = XMLin("$prefix.gps") or die "Failed to parse gps input file";
+#my $xmlin = XMLin("$prefix.xml") or die "Failed to parse xml input file";
 
 for my $point (@{$gpsin->{'gps-point'}}) {
   # Ignore any points without a full 3d GPS fix
@@ -73,21 +73,21 @@ my $gen = XML::Generator->new(
 my @elements;
 for my $wap (sort {$waps{$a}->{time} <=> $waps{$b}->{time}} keys %waps) {
   # Sort the points by time, this might be pointless
-  my @points  = sort {$a->{'time-sec'} <=> $b->{'time-sec'}} @{$waps{$wap}->{points}};
+  my @points  = sort {$a->{lat} <=> $b->{lat} ||
+                      $a->{lon} <=> $b->{lon}} @{$waps{$wap}->{points}};
 
   my @sorted;
   my %pointrefs;
-  COORD: for my $point (@points) {
+  for my $point (@points) {
     my $coordref  = [$point->{lat},$point->{lon}];
 
-    for my $coord (@sorted) {
-      next COORD if ($coord->[0] == $point->{lat} && $coord->[1] == $point->{lon});
-    }
+    next if (@sorted && $sorted[$#sorted]->[0] == $point->{lat} && $sorted[$#sorted]->[1] == $point->{lon});
 
     push @sorted,$coordref;
     $pointrefs{$coordref} = $point;
   }
 
+  ddx(@sorted);
   my $hull  = convex_hull(\@sorted);
 
   my $hullpoints;
