@@ -1,0 +1,11 @@
+Kismet to KML converter.
+
+Tried a few converters, wasn't impressed. Hopefully this will eventually
+use polygons to display a pseudo 3d view of network coverage and whatever
+other swanky advanced features Google Earth supports
+
+TODO:
+-Hook in XML files to provide network details
+-Create a polygon with the convex hull of the network
+-Move the placemark to a weighted centroid of the hull
+-Probably a lot of other stuff I can't think of
