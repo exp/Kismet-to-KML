@@ -37,7 +37,7 @@ sub norm_power {
   my $in  = shift;
 
   $in     += abs($minpower);
-  $in     /= ($maxpower+abs($minpower))/2;
+  $in     /= ($maxpower+abs($minpower))/5;
   $in     += 1;
 
   return $in;
@@ -56,13 +56,11 @@ for my $point (@{$gpsin->{'gps-point'}}) {
 
   $waps{$bssid} = {
     points  => [],
-    powers  => {},
     ssid    => $bssid } unless ($waps{$bssid});
 
-  my $coords  = [$point->{lat},$point->{lon}];
+  $waps{$bssid}->{time} = $point->{'time-sec'} unless (defined($waps{$bssid}->{time}) && $waps{$bssid}->{time} >= $point->{'time-sec'});
 
-  push @{$waps{$bssid}->{points}}, $coords;
-  $waps{$bssid}->{powers}->{$coords}  = $point->{signal};
+  push @{$waps{$bssid}->{points}}, $point;
 }
 
 # This is the path, not a genuine SSID
@@ -73,24 +71,40 @@ my $gen = XML::Generator->new(
 );
 
 my @elements;
-for my $wap (keys %waps) {
-  my $hull  = convex_hull($waps{$wap}->{points});
+for my $wap (sort {$waps{$a}->{time} <=> $waps{$b}->{time}} keys %waps) {
+  # Sort the points by time, this might be pointless
+  my @points  = sort {$a->{'time-sec'} <=> $b->{'time-sec'}} @{$waps{$wap}->{points}};
+
+  my @sorted;
+  my %pointrefs;
+  COORD: for my $point (@points) {
+    my $coordref  = [$point->{lat},$point->{lon}];
+
+    for my $coord (@sorted) {
+      next COORD if ($coord->[0] == $point->{lat} && $coord->[1] == $point->{lon});
+    }
+
+    push @sorted,$coordref;
+    $pointrefs{$coordref} = $point;
+  }
+
+  my $hull  = convex_hull(\@sorted);
 
   my $hullpoints;
   my $pointcount  = 0;
   for my $point (@{$hull}) {
     next unless ($point);
     $pointcount++;
-    $hullpoints .= $point->[1] . "," . $point->[0] . "," . norm_power($waps{$wap}->{powers}->{$point}) . "\n";
+    $hullpoints .= $point->[1] . "," . $point->[0] . "," . norm_power($pointrefs{$point}->{signal}) . "\n";
   }
-  $hullpoints .= $hull->[0]->[1] . "," . $hull->[0]->[0] . "," . norm_power($waps{$wap}->{powers}->{$hull->[0]}) . "\n";
+  $hullpoints .= $hull->[0]->[1] . "," . $hull->[0]->[0] . "," . norm_power($pointrefs{$hull->[0]}->{signal}) . "\n";
 
   my $geometry;
   if ($pointcount <= 3) {
     $geometry = $gen->Point(
       $gen->extrude('1'),
       $gen->altitudeMode('relativeToGround'),
-      $gen->coordinates($waps{$wap}->{points}[0]->[1] ."," . $waps{$wap}->{points}[0]->[0] . ",2"),
+      $gen->coordinates($waps{$wap}->{points}[0]->{lon} ."," . $waps{$wap}->{points}[0]->{lat} . ",8"),
     );
   } else {
     print STDERR "Generating convex hull for WAP $wap with " . scalar @{$hull} . " points\n";
@@ -98,7 +112,7 @@ for my $wap (keys %waps) {
       $gen->Point(
         $gen->extrude('1'),
         $gen->altitudeMode('relativeToGround'),
-        $gen->coordinates($waps{$wap}->{points}[0]->[1] ."," . $waps{$wap}->{points}[0]->[0] . ",2"),
+        $gen->coordinates($waps{$wap}->{points}[0]->{lon} ."," . $waps{$wap}->{points}[0]->{lat} . ",8"),
       ),
       $gen->Polygon({id=>$wap},
         $gen->extrude('1'),
