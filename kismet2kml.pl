@@ -23,6 +23,7 @@ use warnings;
 use lib               'lib/perl5';
 use Data::Dump        qw/ddx/;
 use Math::ConvexHull  qw/convex_hull/;
+use Math::NumberCruncher;
 use XML::Simple;
 use XML::Generator;
 
@@ -72,7 +73,6 @@ my $gen = XML::Generator->new(
 
 my @elements;
 for my $wap (sort {$waps{$a}->{time} <=> $waps{$b}->{time}} keys %waps) {
-  # Sort the points by time, this might be pointless
   my @points  = sort {$a->{lat} <=> $b->{lat} ||
                       $a->{lon} <=> $b->{lon}} @{$waps{$wap}->{points}};
 
@@ -81,55 +81,40 @@ for my $wap (sort {$waps{$a}->{time} <=> $waps{$b}->{time}} keys %waps) {
   for my $point (@points) {
     my $coordref  = [$point->{lat},$point->{lon}];
 
-    next if (@sorted && $sorted[$#sorted]->[0] == $point->{lat} && $sorted[$#sorted]->[1] == $point->{lon});
+    if (@sorted && $sorted[$#sorted]->[0] == $point->{lat} && $sorted[$#sorted]->[1] == $point->{lon}) {
+      # Multiple points at the same location may have different power levels
+      if ($pointrefs{$point}->{signals}) {
+        push @{$sorted[$#sorted]->{signals}}, $point->{signal};
+        $sorted[$#sorted]->{signal} = Math::NumberCruncher::Median($sorted[$#sorted]->{signals});
+      } else {
+        $pointrefs{$sorted[$#sorted]}->{signals} = [$pointrefs{$sorted[$#sorted]}->{signal}];
+      }
+      next;
+    };
 
     push @sorted,$coordref;
     $pointrefs{$coordref} = $point;
   }
 
-  ddx(@sorted);
   my $hull  = convex_hull(\@sorted);
 
   my $hullpoints;
-  my $pointcount  = 0;
+  my @geometry;
   for my $point (@{$hull}) {
     next unless ($point);
-    $pointcount++;
-    $hullpoints .= $point->[1] . "," . $point->[0] . "," . norm_power($pointrefs{$point}->{signal}) . "\n";
-  }
-  $hullpoints .= $hull->[0]->[1] . "," . $hull->[0]->[0] . "," . norm_power($pointrefs{$hull->[0]}->{signal}) . "\n";
-
-  my $geometry;
-  if ($pointcount <= 3) {
-    $geometry = $gen->Point(
+    push @geometry, $gen->Point(
       $gen->extrude('1'),
       $gen->altitudeMode('relativeToGround'),
-      $gen->coordinates($waps{$wap}->{points}[0]->{lon} ."," . $waps{$wap}->{points}[0]->{lat} . ",8"),
-    );
-  } else {
-    print STDERR "Generating convex hull for WAP $wap with " . scalar @{$hull} . " points\n";
-    $geometry = $gen->MultiGeometry(
-      $gen->Point(
-        $gen->extrude('1'),
-        $gen->altitudeMode('relativeToGround'),
-        $gen->coordinates($waps{$wap}->{points}[0]->{lon} ."," . $waps{$wap}->{points}[0]->{lat} . ",8"),
-      ),
-      $gen->Polygon({id=>$wap},
-        $gen->extrude('1'),
-        $gen->altitudeMode('relativeToGround'),
-        $gen->outerBoundaryIs(
-          $gen->LinearRing(
-            $gen->coordinates($hullpoints),
-          ),
-        ),
-      ),
+      $gen->coordinates($pointrefs{$point}->{lon} ."," . $pointrefs{$point}->{lat} . "," . norm_power($pointrefs{$point}->{signal})),
     );
   }
 
   my $xml   = $gen->Placemark({id => $wap},
     $gen->name($wap),
     $gen->description('testing'),
-    $geometry,
+    $gen->MultiGeometry(
+      @geometry,
+    ),
   );
 
   push @elements, $xml;
