@@ -44,11 +44,36 @@ sub norm_power {
 }
 
 my $gpsin = XMLin("$prefix.gps") or die "Failed to parse gps input file";
-#my $xmlin = XMLin("$prefix.xml") or die "Failed to parse xml input file";
+my $xmlin = XMLin("$prefix.xml") or die "Failed to parse xml input file";
+
+for my $network (@{$xmlin->{'wireless-network'}}) {
+  my $wap = {};
+  $wap->{SSID}    = $network->{SSID};
+  $wap->{BSSID}   = $network->{BSSID};
+  $wap->{Channel} = $network->{channel};
+  if (ref($network->{encryption})  ne 'ARRAY') {
+    $wap->{Encryption}  = $network->{encryption};
+  } else {
+    $wap->{Encryption}  = join(', ',@{$network->{encryption}});
+  }
+
+  if ($network->{'wireless-client'}) {
+    if (ref($network->{'wireless-client'})  eq 'HASH') {
+      $wap->{Clients} = 1;
+    } else {
+      $wap->{Clients} = scalar @{$network->{'wireless-client'}};
+    }
+  }
+  $wap->{Clients} //= 0;
+
+  $waps{$network->{BSSID}}  = {desc => $wap};
+}
 
 for my $point (@{$gpsin->{'gps-point'}}) {
   # Ignore any points without a full 3d GPS fix
   next unless ($point->{fix}  == 3);
+  # Ignore points that aren't APs
+  next unless ($waps{$point->{bssid}});
 
   my $bssid = $point->{bssid};
   
@@ -69,6 +94,7 @@ my $path  = delete($waps{'GP:SD:TR:AC:KL:OG'});
 
 my $gen = XML::Generator->new(
   pretty    => 2,
+  escape    => 'even-entities',
 );
 
 my @elements;
@@ -109,9 +135,20 @@ for my $wap (sort {$waps{$a}->{time} <=> $waps{$b}->{time}} keys %waps) {
     );
   }
 
-  my $xml   = $gen->Placemark({id => $wap},
-    $gen->name($wap),
-    $gen->description('testing'),
+  my $id;
+  if ($waps{$wap}->{desc}->{SSID}) {
+    $id = $waps{$wap}->{desc}->{SSID};
+  } else {
+    $id = $wap;
+  }
+
+  my @description = map {"$_: " . $waps{$wap}->{desc}->{$_} ."<br>\n"} grep {defined($waps{$wap}->{desc}->{$_})} keys %{$waps{$wap}->{desc}};
+
+  my $xml   = $gen->Placemark({id => $id},
+    $gen->name($id),
+    $gen->description(
+      $gen->xmlcdata(@description),
+    ),
     $gen->MultiGeometry(
       @geometry,
     ),
