@@ -128,9 +128,15 @@ sub average {
 }
 
 print STDERR "Beginning GPS point scan\n";
+my $route;
 for my $point (@{$gpsin->{'gps-point'}}) {
   # Ignore any points without a full 3d GPS fix
   next unless ($point->{fix}  == 3);
+  # Special case for the path taken
+  if ($point->{bssid} eq 'GP:SD:TR:AC:KL:OG') {  
+    $route  .= $point->{lon} .",". $point->{lat} .",1 ";
+    next;
+  }
   # Ignore points that aren't APs
   next unless ($waps{$point->{bssid}});
 
@@ -152,9 +158,6 @@ for my $point (@{$gpsin->{'gps-point'}}) {
   push @{$waps{$bssid}->{points}}, $point;
 }
 print STDERR "Finished GPS point scan\n";
-
-# This is the path, not a genuine SSID
-my $path  = delete($waps{'GP:SD:TR:AC:KL:OG'});
 
 my $gen = XML::Generator->new(
   pretty    => 2,
@@ -240,11 +243,39 @@ for my $wap (sort {$waps{$a}->{time} <=> $waps{$b}->{time}} keys %waps) {
   push @elements, $xml;
 }
 print STDERR "Finished WAP calculations\n";
+
 print STDERR "Printing KML\n";
 print '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 print $gen->kml(['http://www.opengis.net/kml/2.2'],
   $gen->Folder(
-    $gen->name('Kismet GPS'),
+    $gen->name('Kismet - ' . $xmlin->{'start-time'}),
+    $gen->Folder(
+      $gen->name("Route Taken"),
+      $gen->Placemark(
+        $gen->name("Start"),
+        $gen->Point(
+          $gen->extrude(1),
+          $gen->altitudeMode('relativeToGround'),
+          $gen->coordinates(($route =~ m/^(\S+),\d /)[0] . ",6"),
+        ),
+      ),
+      $gen->Placemark(
+        $gen->name("End"),
+        $gen->Point(
+          $gen->extrude(1),
+          $gen->altitudeMode('relativeToGround'),
+          $gen->coordinates(($route =~ m/(\S+),\d $/)[0] . ",6"),
+        ),
+      ),
+      $gen->Placemark(
+        $gen->name("Route"),
+        $gen->LineString(
+          $gen->extrude(1),
+          $gen->altitudeMode('relativeToGround'),
+          $gen->coordinates($route),
+        ),
+      ),
+    ),
     @elements,
   )) . "\n";
 print STDERR "Done\n";
