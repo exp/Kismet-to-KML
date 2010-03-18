@@ -51,7 +51,7 @@ if (-r "$prefix.gps" && -r "$prefix.xml") {
 sub norm_power {
   my $in  = shift;
 
-  return 1 unless ($seensignal);
+  return 6 unless ($seensignal);
 
   $in     += abs($minpower);
   $in     /= ($maxpower+abs($minpower))/5;
@@ -168,13 +168,29 @@ for my $wap (sort {$waps{$a}->{time} <=> $waps{$b}->{time}} keys %waps) {
     push @points,$point;
   }
 
-  my @geometry;
+  my @signals;
   for my $point (@points) {
     next unless ($point);
-    push @geometry, $gen->Point(
-      $gen->extrude('1'),
-      $gen->altitudeMode('relativeToGround'),
-      $gen->coordinates($point->{lon} .",". $point->{lat} .",". norm_power($point->{signal})),
+
+    # Complete hack to display stable lines in google earth  
+    my $coords  = ($point->{lon} - 0.0000005) .",". ($point->{lat} - 0.0000005) .",". norm_power($point->{signal}) ."\n".
+                  ($point->{lon} - 0.0000005) .",". ($point->{lat} + 0.0000005) .",". norm_power($point->{signal}) ."\n".
+                  ($point->{lon} + 0.0000005) .",". ($point->{lat} + 0.0000005) .",". norm_power($point->{signal}) ."\n".
+                  ($point->{lon} + 0.0000005) .",". ($point->{lat} - 0.0000005) .",". norm_power($point->{signal}) ."\n".
+                  ($point->{lon} - 0.0000005) .",". ($point->{lat} - 0.0000005) .",". norm_power($point->{signal});
+
+    push @signals, $gen->Placemark(
+      $gen->visible(0),
+      $gen->open(0),
+      $gen->Polygon(
+        $gen->extrude('1'),
+        $gen->altitudeMode('relativeToGround'),
+        $gen->outerBoundaryIs(
+          $gen->LinearRing(
+            $gen->coordinates($coords),
+          ),
+        ),
+      ),
     );
   }
 
@@ -187,13 +203,22 @@ for my $wap (sort {$waps{$a}->{time} <=> $waps{$b}->{time}} keys %waps) {
 
   my @description = map {"$_: " . $waps{$wap}->{desc}->{$_} ."<br>\n"} grep {defined($waps{$wap}->{desc}->{$_})} keys %{$waps{$wap}->{desc}};
 
-  my $xml   = $gen->Placemark({id => $id},
+  my $xml   = $gen->Folder(
     $gen->name($id),
-    $gen->description(
-      $gen->xmlcdata(@description),
+    $gen->Placemark(
+      $gen->name($id),
+      $gen->description(
+        $gen->xmlcdata(@description),
+      ),
+      $gen->Point(
+        $gen->extrude(1),
+        $gen->altitudeMode('relativeToGround'),
+        $gen->coordinates($points[0]->{lon} .",". $points[0]->{lat} .",6"),
+      ),
     ),
-    $gen->MultiGeometry(
-      @geometry,
+    $gen->Folder(
+      $gen->name('Signal Strength Map'),
+      @signals,
     ),
   );
 
