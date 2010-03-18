@@ -113,6 +113,20 @@ sub parse_gpsxml {
   }
 }
 
+sub average {
+  my $points  = shift;
+
+  my ($lat,$lon);
+  for my $point (@{$points}) {
+    $lat  += $point->{lat};
+    $lon  += $point->{lon};
+  }
+
+  $lat  /= scalar @{$points};
+  $lon  /= scalar @{$points};
+  return $lon .",". $lat;
+}
+
 print STDERR "Beginning GPS point scan\n";
 for my $point (@{$gpsin->{'gps-point'}}) {
   # Ignore any points without a full 3d GPS fix
@@ -202,6 +216,7 @@ for my $wap (sort {$waps{$a}->{time} <=> $waps{$b}->{time}} keys %waps) {
   }
 
   my @description = map {"$_: " . $waps{$wap}->{desc}->{$_} ."<br>\n"} grep {defined($waps{$wap}->{desc}->{$_})} keys %{$waps{$wap}->{desc}};
+  my $pointcoords = average(\@points);
 
   my $xml   = $gen->Folder(
     $gen->name($id),
@@ -213,7 +228,7 @@ for my $wap (sort {$waps{$a}->{time} <=> $waps{$b}->{time}} keys %waps) {
       $gen->Point(
         $gen->extrude(1),
         $gen->altitudeMode('relativeToGround'),
-        $gen->coordinates($points[0]->{lon} .",". $points[0]->{lat} .",6"),
+        $gen->coordinates($pointcoords . ",6"),
       ),
     ),
     $gen->Folder(

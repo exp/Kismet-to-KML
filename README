@@ -7,12 +7,13 @@ other swanky advanced features Google Earth supports
 HOWTO:
  Run the script with the prefix of your gps and xml files:
 
- mykismetrun.xml
- mykismetrun.gps
+ mykismetrun.[net]xml
+ mykismetrun.gps[xml]
 
  perl kismet2kml.pl mykismetrun
 
 TODO:
--Hook in XML files to provide network details
--Move the placemark to a weighted centroid of the hull
+-Use power levels to weight network centre
+-Color networks distinctly from their neighbours
+-Use KML styling to distinguish networks on highlight
 -Probably a lot of other stuff I can't think of
