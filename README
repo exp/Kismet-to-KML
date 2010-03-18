@@ -4,6 +4,14 @@ Tried a few converters, wasn't impressed. Hopefully this will eventually
 use polygons to display a pseudo 3d view of network coverage and whatever
 other swanky advanced features Google Earth supports
 
+HOWTO:
+ Run the script with the prefix of your gps and xml files:
+
+ mykismetrun.xml
+ mykismetrun.gps
+
+ perl kismet2kml.pl mykismetrun
+
 TODO:
 -Hook in XML files to provide network details
 -Move the placemark to a weighted centroid of the hull
