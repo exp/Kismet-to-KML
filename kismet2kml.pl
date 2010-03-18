@@ -62,6 +62,8 @@ sub norm_power {
 
 sub parse_gps {
   for my $network (@{$xmlin->{'wireless-network'}}) {
+    next unless ($network->{type} eq 'infrastructure');
+
     my $wap = {};
     $wap->{ESSID}   = $network->{SSID};
     $wap->{BSSID}   = $network->{BSSID};
@@ -88,6 +90,7 @@ sub parse_gps {
 sub parse_gpsxml {
   for my $network (@{$xmlin->{'wireless-network'}}) {
     next unless (defined($network->{SSID}));
+    next unless ($network->{type} eq 'infrastructure');
 
     my $wap = {};
     $wap->{ESSID}   = $network->{SSID}->{essid}->{content} if ($network->{SSID}->{essid}->{content});

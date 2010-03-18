@@ -14,6 +14,8 @@ HOWTO:
 
 TODO:
 -Use power levels to weight network centre
+-Sort gps points by time and stamp them with their timestamp
 -Color networks distinctly from their neighbours
+-Add in KML tour to navigate the whole path
 -Use KML styling to distinguish networks on highlight
 -Probably a lot of other stuff I can't think of
