@@ -90,6 +90,7 @@ sub parse_gps {
 sub parse_gpsxml {
   for my $network (@{$xmlin->{'wireless-network'}}) {
     next unless (defined($network->{SSID}));
+		next unless (ref($network->{SSID}->{essid})  eq 'HASH');
     next unless ($network->{type} eq 'infrastructure');
 
     my $wap = {};
