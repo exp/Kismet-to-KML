@@ -91,18 +91,21 @@ sub parse_gpsxml {
   for my $network (@{$xmlin->{'wireless-network'}}) {
 		if ($network->{type} eq 'infrastructure') {
 			my $wap = {};
-			if (ref($network->{SSID}) eq 'HASH' && ref($network->{SSID}->{essid}) eq 'HASH' && $network->{SSID}->{essid}->{content})
-			{
-				$wap->{ESSID}   = $network->{SSID}->{essid}->{content}
-			}
 			$wap->{BSSID}   = $network->{BSSID};
 			$wap->{Channel} = $network->{channel};
 			$wap->{type}    = $network->{type};
 
-			if (ref($network->{SSID}->{encryption}) ne 'ARRAY') {
-				$wap->{Encryption}  = $network->{SSID}->{encryption};
-			} else {
-				$wap->{Encryption}  = join(', ',@{$network->{SSID}->{encryption}});
+			if (ref($network->{SSID})) {
+				if (ref($network->{SSID}->{essid}) eq 'HASH' && $network->{SSID}->{essid}->{content})
+				{
+					$wap->{ESSID}   = $network->{SSID}->{essid}->{content}
+				}
+				
+				if (ref($network->{SSID}->{encryption}) ne 'ARRAY') {
+					$wap->{Encryption}  = $network->{SSID}->{encryption};
+				} else {
+					$wap->{Encryption}  = join(', ',@{$network->{SSID}->{encryption}});
+				}
 			}
 
 			if ($network->{'wireless-client'}) {
