@@ -89,32 +89,37 @@ sub parse_gps {
 
 sub parse_gpsxml {
   for my $network (@{$xmlin->{'wireless-network'}}) {
-    next unless (defined($network->{SSID}));
-		next unless (ref($network->{SSID}->{essid})  eq 'HASH');
-    next unless ($network->{type} eq 'infrastructure');
+		if ($network->{type} eq 'infrastructure') {
+			my $wap = {};
+			$wap->{ESSID}   = $network->{SSID}->{essid}->{content} if (ref($network->{SSID}->{essid}) eq 'HASH' && $network->{SSID}->{essid}->{content});
+			$wap->{BSSID}   = $network->{BSSID};
+			$wap->{Channel} = $network->{channel};
+			$wap->{type}    = $network->{type};
 
-    my $wap = {};
-    $wap->{ESSID}   = $network->{SSID}->{essid}->{content} if ($network->{SSID}->{essid}->{content});
-    $wap->{BSSID}   = $network->{BSSID};
-    $wap->{Channel} = $network->{channel};
+			if (ref($network->{SSID}->{encryption}) ne 'ARRAY') {
+				$wap->{Encryption}  = $network->{SSID}->{encryption};
+			} else {
+				$wap->{Encryption}  = join(', ',@{$network->{SSID}->{encryption}});
+			}
 
-    if (ref($network->{SSID}->{encryption}) ne 'ARRAY') {
-      $wap->{Encryption}  = $network->{SSID}->{encryption};
-    } else {
-      $wap->{Encryption}  = join(', ',@{$network->{SSID}->{encryption}});
-    }
-
-    if ($network->{'wireless-client'}) {
-      if (ref($network->{'wireless-client'})  eq 'HASH') {
-        $wap->{Clients} = 1;
-      } else {
-        $wap->{Clients} = scalar @{$network->{'wireless-client'}};
-      }
-    }
-    $wap->{Clients} //= 0;
-  
-    $waps{$network->{BSSID}}  = {desc => $wap};
-  }
+			if ($network->{'wireless-client'}) {
+				if (ref($network->{'wireless-client'})  eq 'HASH') {
+					$wap->{Clients} = 1;
+				} else {
+					$wap->{Clients} = scalar @{$network->{'wireless-client'}};
+				}
+			}
+			$wap->{Clients} //= 0;
+		
+			$waps{$network->{BSSID}}  = {desc => $wap};
+		} else {
+			my $wap = {};
+			$wap->{BSSID}   = $network->{BSSID};
+			$wap->{Channel} = $network->{Channel};
+			$wap->{type}    = $network->{type};
+			$waps{$network->{BSSID}}  = {desc => $wap};
+		}
+	}
 }
 
 sub average {
@@ -201,6 +206,7 @@ for my $wap (sort {$waps{$a}->{time} <=> $waps{$b}->{time}} keys %waps) {
                   ($point->{lon} - 0.0000005) .",". ($point->{lat} - 0.0000005) .",". norm_power($point->{signal});
 
     push @signals, $gen->Placemark(
+			$gen->styleUrl($waps{$wap}->{desc}->{type} eq 'infrastructure' ? '#inf' : '#noninf'),
       $gen->visible(0),
       $gen->open(0),
       $gen->Polygon(
@@ -251,35 +257,40 @@ print STDERR "Finished WAP calculations\n";
 print STDERR "Printing KML\n";
 print '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 print $gen->kml(['http://www.opengis.net/kml/2.2'],
-  $gen->Folder(
-    $gen->name('Kismet - ' . $xmlin->{'start-time'}),
-    $gen->Folder(
-      $gen->name("Route Taken"),
-      $gen->Placemark(
-        $gen->name("Start"),
-        $gen->Point(
-          $gen->extrude(1),
-          $gen->altitudeMode('relativeToGround'),
-          $gen->coordinates(($route =~ m/^(\S+),\d /)[0] . ",6"),
-        ),
-      ),
-      $gen->Placemark(
-        $gen->name("End"),
-        $gen->Point(
-          $gen->extrude(1),
-          $gen->altitudeMode('relativeToGround'),
-          $gen->coordinates(($route =~ m/(\S+),\d $/)[0] . ",6"),
-        ),
-      ),
-      $gen->Placemark(
-        $gen->name("Route"),
-        $gen->LineString(
-          $gen->extrude(1),
-          $gen->altitudeMode('relativeToGround'),
-          $gen->coordinates($route),
-        ),
-      ),
-    ),
-    @elements,
-  )) . "\n";
+	$gen->Document(
+		$gen->name('Kismet - ' . $xmlin->{'start-time'}),
+		$gen->Style({id => "noninf"},
+			$gen->LineStyle(
+				$gen->color('ff0000ff'),
+			),
+		),
+		$gen->Folder(
+			$gen->name("Route Taken"),
+			$gen->Placemark(
+				$gen->name("Start"),
+				$gen->Point(
+					$gen->extrude(1),
+					$gen->altitudeMode('relativeToGround'),
+					$gen->coordinates(($route =~ m/^(\S+),\d /)[0] . ",6"),
+				),
+			),
+			$gen->Placemark(
+				$gen->name("End"),
+				$gen->Point(
+					$gen->extrude(1),
+					$gen->altitudeMode('relativeToGround'),
+					$gen->coordinates(($route =~ m/(\S+),\d $/)[0] . ",6"),
+				),
+			),
+			$gen->Placemark(
+				$gen->name("Route"),
+				$gen->LineString(
+					$gen->extrude(1),
+					$gen->altitudeMode('relativeToGround'),
+					$gen->coordinates($route),
+				),
+			),
+		),
+		@elements,
+	)) . "\n";
 print STDERR "Done\n";
