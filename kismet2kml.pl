@@ -95,7 +95,7 @@ sub parse_gpsxml {
 			$wap->{Channel} = $network->{channel};
 			$wap->{type}    = $network->{type};
 
-			if (ref($network->{SSID})) {
+			if (ref($network->{SSID}) eq 'HASH') {
 				if (ref($network->{SSID}->{essid}) eq 'HASH' && $network->{SSID}->{essid}->{content})
 				{
 					$wap->{ESSID}   = $network->{SSID}->{essid}->{content}
