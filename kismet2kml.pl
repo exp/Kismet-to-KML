@@ -52,9 +52,10 @@ sub norm_power {
   my $in  = shift;
 
   return 6 unless ($seensignal);
+	my $diff  = $maxpower - $minpower;
 
-  $in     += abs($minpower);
-  $in     /= ($maxpower+abs($minpower))/5;
+  $in    -= $minpower;
+  $in     /= $diff/5;
   $in     += 1;
 
   return $in;
@@ -157,11 +158,14 @@ for my $point (@{$gpsin->{'gps-point'}}) {
 
   my $bssid = $point->{bssid};
 
-  $seensignal = 1 if ($point->{signal} && $point->{signal}  != 0);
-
-  if ($point->{signal}) {
-    $minpower = $point->{signal} unless ($point->{signal} == 0 || defined($minpower) && $minpower <= $point->{signal});
-    $maxpower = $point->{signal} unless ($point->{signal} == 0 || defined($maxpower) && $maxpower >= $point->{signal});
+  if ($point->{signal} ||	$point->{signal_dbm}) {
+		my $power = ($point->{signal} && $point->{signal} != 0) ? $point->{signal} : $point->{signal_dbm};
+		$point->{power}  = $power;
+		next if ($power == 0);
+		
+		$seensignal = 1;
+    $minpower = $power unless (defined($minpower) && $minpower <= $power);
+    $maxpower = $power unless (defined($maxpower) && $maxpower >= $power);
   }
 
   $waps{$bssid} = {
@@ -189,14 +193,14 @@ for my $wap (sort {$waps{$a}->{time} <=> $waps{$b}->{time}} keys %waps) {
   for my $point (@sorted) {
     if ($points[$#points] &&  $points[$#points]->{lat} == $point->{lat} &&
                               $points[$#points]->{lon} == $point->{lon}) {
-      next unless ($point->{signal} && $point->{signal} != 0);
+      next unless ($point->{power} && $point->{power} != 0);
       # Multiple points at the same location may have different power levels
-      push @{$points[$#points]->{signals}}, $point->{signal};
-      $points[$#points]->{signal} = Math::NumberCruncher::Median($points[$#points]->{signals});
+      push @{$points[$#points]->{powers}}, $point->{power};
+      $points[$#points]->{power} = Math::NumberCruncher::Median($points[$#points]->{powers});
       next;
     };
 
-    $point->{signals} = [$point->{signal}];
+    $point->{powers} = [$point->{power}];
     push @points,$point;
   }
 
@@ -204,12 +208,13 @@ for my $wap (sort {$waps{$a}->{time} <=> $waps{$b}->{time}} keys %waps) {
   for my $point (@points) {
     next unless ($point);
 
+		my $power = norm_power($point->{power});
     # Complete hack to display stable lines in google earth  
-    my $coords  = ($point->{lon} - 0.0000005) .",". ($point->{lat} - 0.0000005) .",". norm_power($point->{signal}) ."\n".
-                  ($point->{lon} - 0.0000005) .",". ($point->{lat} + 0.0000005) .",". norm_power($point->{signal}) ."\n".
-                  ($point->{lon} + 0.0000005) .",". ($point->{lat} + 0.0000005) .",". norm_power($point->{signal}) ."\n".
-                  ($point->{lon} + 0.0000005) .",". ($point->{lat} - 0.0000005) .",". norm_power($point->{signal}) ."\n".
-                  ($point->{lon} - 0.0000005) .",". ($point->{lat} - 0.0000005) .",". norm_power($point->{signal});
+    my $coords  = ($point->{lon} - 0.000005) .",". ($point->{lat} - 0.000005) .",". $power ."\n".
+                  ($point->{lon} - 0.000005) .",". ($point->{lat} + 0.000005) .",". $power ."\n".
+                  ($point->{lon} + 0.000005) .",". ($point->{lat} + 0.000005) .",". $power ."\n".
+                  ($point->{lon} + 0.000005) .",". ($point->{lat} - 0.000005) .",". $power ."\n".
+                  ($point->{lon} - 0.000005) .",". ($point->{lat} - 0.000005) .",". $power;
 
     push @signals, $gen->Placemark(
 			$gen->styleUrl($waps{$wap}->{desc}->{type} eq 'infrastructure' ? '#inf' : '#noninf'),
